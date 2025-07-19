@@ -6,17 +6,25 @@ import com.example.UserServiceCapstone.models.Token;
 import com.example.UserServiceCapstone.models.User;
 import com.example.UserServiceCapstone.repositories.TokenRepository;
 import com.example.UserServiceCapstone.repositories.UserRepository;
+import org.apache.commons.lang3.RandomStringUtils;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.Optional;
-
+@Service
 public class UserServiceImpl implements UserService {
     private UserRepository userRepository; // Assume this is injected or initialized elsewhere
     private TokenRepository tokenRepository;
+    private BCryptPasswordEncoder passwordEncoder;
 
-    public UserServiceImpl(UserRepository userRepository, TokenRepository tokenRepository) {
+    public UserServiceImpl(UserRepository userRepository, TokenRepository tokenRepository,BCryptPasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.tokenRepository = tokenRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     // Implementation of UserService methods
@@ -29,7 +37,8 @@ public class UserServiceImpl implements UserService {
         }
         User newUser = new User();
         newUser.setEmail(email);
-        newUser.setPassword(password); // Consider hashing the password before saving
+//        we are using BryptPasswordEncoder for password hashing
+        newUser.setPassword(passwordEncoder.encode(password));
         newUser.setName(name);
         return userRepository.save(newUser); // Replace with actual implementation
     }
@@ -44,17 +53,24 @@ public class UserServiceImpl implements UserService {
         }
 //        if user is present
         User user = userOptional.get();
-        if (user.getPassword().equals(password)) {
+        if (passwordEncoder.matches(password, user.getPassword())) {
 //            -------log in successfull ,create Toke------
             Token token = new Token();
             token.setUser(user);
 
 //          Set expiry date 30 days from now
-            LocalDateTime expiryDate = LocalDateTime.now().plusDays(30);
+            Date now = new Date(); // current time
+            Calendar calendar = Calendar.getInstance();
+            calendar.setTime(now);
+            calendar.add(Calendar.DAY_OF_MONTH, 30); // Add 30 days
+            Date expiryDate = calendar.getTime(); // Get the updated date
+
             token.setExpiryDate(expiryDate);
 
+
+
 //            set token
-            token.setValue("kjsdffhkerigfiuwrbbbk");
+            token.setValue(RandomStringUtils.randomAlphanumeric(128)); // Generate a random token value
             return tokenRepository.save(token);
 
         }
@@ -68,10 +84,18 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public User validateToken(String tokenValue) {
-        // Implementation for token validation
-        return null; // Replace with actual implementation
-    }
+        //Check if the token is present in the DB, token is NOT deleted and
+        //token's expiry time is greater than the current time.
+        Optional<Token> optionalToken = tokenRepository.
+                findByValueAndDeletedAndExpiryDateGreaterThan(
+                        tokenValue,
+                        false,
+                        new Date()
+                );
 
+        //Token invalid
+        return optionalToken.map(Token::getUser).orElse(null);
+    }
     @Override
     public void logout(String tokenValue) {
         // Implementation for user logout

@@ -34,7 +34,7 @@ public class UserController {
     }
 
     @PostMapping("/signup")
-    public UserDto signUp(SignUpRequestDto signUpRequestDto) {
+    public UserDto signUp( @RequestBody SignUpRequestDto signUpRequestDto) {
         // Logic for user signup
         User user = userService.signUp(
 
@@ -58,12 +58,14 @@ public class UserController {
 
 
     }
+    @GetMapping("/validate/{tokenValue}")
     public  UserDto validateToken( @PathVariable String  tokenValue) {
         // Logic to validate the token
+        User user = userService.validateToken(tokenValue);
         // Check if the token is valid, not expired, etc.
 
-        // Return true if valid, false otherwise
-        return null;
+
+        return UserDto.from(user);
     }
 
 }
